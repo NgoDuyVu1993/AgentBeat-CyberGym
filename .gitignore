@@ -1,0 +1,9 @@
+.env
+.DS_Store
+.python-version
+.venv/
+__pycache__/
+*.pyc
+cybergym_data/
+cybergym-oss-fuzz-data-subset/
+CyberGym-AgentBeats-Package-20251117_221610/

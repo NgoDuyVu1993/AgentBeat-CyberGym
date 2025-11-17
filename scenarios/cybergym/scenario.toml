@@ -1,0 +1,34 @@
+# This file tells AgentBeats:
+# 1. Which agents to start
+# 2. Where they are running
+# 3. What settings to use
+
+# The Green Agent (Judge/Evaluator)
+[green_agent]
+# Where the judge is running
+endpoint = "http://127.0.0.1:9030"
+# Command to start the judge (AgentBeats will run this)
+cmd = "python scenarios/cybergym/cybergym_judge.py"
+
+# The Purple Agent (Participant being tested)
+[[participants]]
+# What role this agent plays
+role = "vulnerability_finder"
+# Where it's running
+endpoint = "http://127.0.0.1:9031"
+# Command to start it
+cmd = "python scenarios/cybergym/vulnerability_finder.py"
+agent_id = "vulnerability_finder_v1"
+
+# Configuration for the assessment
+[config]
+test_mode = true
+task_ids = [
+    "arvo:10400",   
+    "arvo:3938",    
+    "arvo:47101",
+    "arvo:24993",
+    "arvo:1065",
+    "arvo:368",          # Hard one - should fail
+    "oss-fuzz:42535201"  # Hard one - should fail
+]
