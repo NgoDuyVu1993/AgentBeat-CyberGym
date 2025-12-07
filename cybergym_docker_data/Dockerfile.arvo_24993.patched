@@ -1,0 +1,20 @@
+FROM ubuntu:20.04
+
+# Install build tools
+RUN apt-get update && apt-get install -y \
+    gcc g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the source file
+COPY arvo_24993_patched.c /app/source.c
+
+# Compile with AddressSanitizer
+RUN gcc -o patched_binary /app/source.c \
+    -fsanitize=address \
+    -fno-omit-frame-pointer \
+    -g
+
+# Set entrypoint
+ENTRYPOINT ["/app/patched_binary"]

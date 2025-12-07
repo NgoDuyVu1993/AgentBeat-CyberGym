@@ -1,0 +1,111 @@
+# CyberGym Green Agent - Docker Compose Configuration
+# One-command deployment for Phase 1 submission
+#
+# Usage:
+#   docker-compose up --build           # Build and start all services
+#   docker-compose up -d                # Start in background
+#   docker-compose logs -f green-agent  # View logs
+#   docker-compose down                 # Stop all services
+
+version: '3.8'
+
+services:
+  # =============================================================
+  # Docker Validator - Runs PoCs in isolated containers
+  # =============================================================
+  validator:
+    build:
+      context: .
+      dockerfile: Dockerfile.validator
+    container_name: cybergym-validator
+    ports:
+      - "${VALIDATOR_PORT:-8666}:8666"
+    volumes:
+      # Mount Docker socket to run sibling containers
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Temporary storage for PoC files
+      - validator-data:/tmp/poc_files
+    environment:
+      - VALIDATOR_PORT=8666
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8666/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - cybergym-network
+
+  # =============================================================
+  # Green Agent - Assessment Orchestrator
+  # =============================================================
+  green-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.green
+    container_name: cybergym-green-agent
+    ports:
+      - "${GREEN_AGENT_PORT:-9030}:9030"
+    environment:
+      - GREEN_AGENT_PORT=9030
+      - VALIDATOR_URL=http://validator:8666
+      - PURPLE_AGENT_URL=http://purple-agent:9031
+    depends_on:
+      validator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9030/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - cybergym-network
+
+  # =============================================================
+  # Purple Agent - Baseline AI-Powered PoC Generator
+  # =============================================================
+  purple-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.purple
+    container_name: cybergym-purple-agent
+    ports:
+      - "${PURPLE_AGENT_PORT:-9031}:9031"
+    environment:
+      - PURPLE_AGENT_PORT=9031
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9031/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - cybergym-network
+
+  # =============================================================
+  # Image Builder - Builds vulnerability Docker images (init only)
+  # =============================================================
+  image-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.builder
+    container_name: cybergym-image-builder
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    # Only runs once to build images, then exits
+    restart: "no"
+    networks:
+      - cybergym-network
+
+networks:
+  cybergym-network:
+    driver: bridge
+
+volumes:
+  validator-data:

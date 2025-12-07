@@ -1,0 +1,38 @@
+# Dockerfile for CyberGym Green Agent
+# Assessment orchestrator that coordinates Purple Agents and Validator
+
+FROM python:3.11-slim
+
+LABEL maintainer="CyberGym Team"
+LABEL description="Green Agent - Assessment Orchestrator"
+LABEL version="1.0.0"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY scenarios/cybergym/green_agent_prod.py .
+COPY scenarios/cybergym/test_docker_system.py .
+
+# Create non-root user for security
+RUN useradd -m -u 1000 agent && chown -R agent:agent /app
+USER agent
+
+# Expose port
+EXPOSE 9030
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9030/health || exit 1
+
+# Run the Green Agent
+CMD ["python", "green_agent_prod.py"]

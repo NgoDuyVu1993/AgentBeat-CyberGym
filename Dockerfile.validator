@@ -1,0 +1,41 @@
+# Dockerfile for CyberGym Docker Validator
+# Runs PoCs in isolated containers and validates results
+
+FROM python:3.11-slim
+
+LABEL maintainer="CyberGym Team"
+LABEL description="Docker Validator - PoC Execution and Validation"
+LABEL version="1.0.0"
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies including Docker CLI
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY scenarios/cybergym/docker_validator.py .
+COPY scenarios/cybergym/docker_setup.py .
+
+# Create directories for PoC files
+RUN mkdir -p /tmp/poc_files && chmod 777 /tmp/poc_files
+
+# Note: Running as root to access Docker socket
+# In production, use Docker socket proxy for better security
+
+# Expose port
+EXPOSE 8666
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8666/health || exit 1
+
+# Run the Validator
+CMD ["python", "docker_validator.py"]
