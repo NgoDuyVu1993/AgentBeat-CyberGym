@@ -75,7 +75,7 @@ CyberGym-AgentBeats/
 
 ```bash
 # Clone the repository
-git clone https://github.com/YourUsername/CyberGym-AgentBeats.git
+git clone https://github.com/NgoDuyVu1993/AgentBeat-CyberGym.git
 cd CyberGym-AgentBeats
 
 # Set up environment
@@ -368,8 +368,8 @@ MIT License - See LICENSE file for details.
 
 ## 👥 Team
 
-- [Your Name]
-- [Teammate: ngoduyvu]
+- Ngo Duy Vu
+- Okl
 
 **Competition**: Berkeley RDI AgentX-AgentBeats Competition
 **Track**: Lambda Agent Security (Green Agent)
