@@ -7,3 +7,4 @@ __pycache__/
 cybergym_data/
 cybergym-oss-fuzz-data-subset/
 CyberGym-AgentBeats-Package-20251117_221610/
+cybergym_docker_data/
