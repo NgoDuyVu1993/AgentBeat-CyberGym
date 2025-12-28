@@ -1,10 +1,41 @@
+# Environment
 .env
-.DS_Store
-.python-version
 .venv/
+.python-version
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CyberGym Core (external repo + large data)
+cybergym-core/
 cybergym_data/
 cybergym-oss-fuzz-data-subset/
-CyberGym-AgentBeats-Package-20251117_221610/
 cybergym_docker_data/
+
+# Generated files
+*.db
+poc.db
+logs/
+*.log
+
+# Old packages
+CyberGym-AgentBeats-Package-*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak
