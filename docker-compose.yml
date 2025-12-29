@@ -1,111 +1,84 @@
-# CyberGym Green Agent - Docker Compose Configuration
-# One-command deployment for Phase 1 submission
-#
-# Usage:
-#   docker-compose up --build           # Build and start all services
-#   docker-compose up -d                # Start in background
-#   docker-compose logs -f green-agent  # View logs
-#   docker-compose down                 # Stop all services
-
 version: '3.8'
 
+# CyberGym AgentBeats - Complete Orchestration
+# Runs all 3 components in Linux containers (solves Windows path issues)
+
 services:
-  # =============================================================
-  # Docker Validator - Runs PoCs in isolated containers
-  # =============================================================
-  validator:
-    build:
-      context: .
-      dockerfile: Dockerfile.validator
-    container_name: cybergym-validator
-    ports:
-      - "${VALIDATOR_PORT:-8666}:8666"
+  # ============================================================
+  # Official CyberGym Validation Server
+  # ============================================================
+  cybergym-server:
+    image: python:3.12-slim
+    container_name: cybergym-server
+    working_dir: /app
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y docker.io &&
+        pip install -e '.[server]' &&
+        python -m cybergym.server 
+          --host 0.0.0.0 
+          --port 8666 
+          --cybergym_oss_fuzz_path /data/oss-fuzz-data
+      "
     volumes:
-      # Mount Docker socket to run sibling containers
-      - /var/run/docker.sock:/var/run/docker.sock
-      # Temporary storage for PoC files
-      - validator-data:/tmp/poc_files
-    environment:
-      - VALIDATOR_PORT=8666
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8666/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
+      - ./cybergym-core:/app
+      - ./cybergym-core/cybergym-oss-fuzz-data-subset:/data
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker-in-Docker for fuzzer execution
+    ports:
+      - "8666:8666"
     networks:
       - cybergym-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8666/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # =============================================================
-  # Green Agent - Assessment Orchestrator
-  # =============================================================
+  # ============================================================
+  # Green Agent (Evaluator) - Port 9030
+  # ============================================================
   green-agent:
     build:
-      context: .
+      context: ./scenarios/cybergym
       dockerfile: Dockerfile.green
-    container_name: cybergym-green-agent
+    container_name: green-agent
     ports:
-      - "${GREEN_AGENT_PORT:-9030}:9030"
+      - "9030:9030"
     environment:
+      - CYBERGYM_SERVER_URL=http://cybergym-server:8666
       - GREEN_AGENT_PORT=9030
-      - VALIDATOR_URL=http://validator:8666
-      - PURPLE_AGENT_URL=http://purple-agent:9031
     depends_on:
-      validator:
+      cybergym-server:
         condition: service_healthy
+    networks:
+      - cybergym-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9030/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9030/"]
       interval: 10s
       timeout: 5s
       retries: 3
-    restart: unless-stopped
-    networks:
-      - cybergym-network
 
-  # =============================================================
-  # Purple Agent - Baseline AI-Powered PoC Generator
-  # =============================================================
+  # ============================================================
+  # Purple Agent (AI Exploit Generator) - Port 9031
+  # ============================================================
   purple-agent:
     build:
-      context: .
+      context: ./scenarios/cybergym
       dockerfile: Dockerfile.purple
-    container_name: cybergym-purple-agent
+    container_name: purple-agent
     ports:
-      - "${PURPLE_AGENT_PORT:-9031}:9031"
+      - "9031:9031"
     environment:
-      - PURPLE_AGENT_PORT=9031
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
+      - PURPLE_AGENT_PORT=9031
+    networks:
+      - cybergym-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9031/health"]
       interval: 10s
       timeout: 5s
       retries: 3
-    restart: unless-stopped
-    networks:
-      - cybergym-network
-
-  # =============================================================
-  # Image Builder - Builds vulnerability Docker images (init only)
-  # =============================================================
-  image-builder:
-    build:
-      context: .
-      dockerfile: Dockerfile.builder
-    container_name: cybergym-image-builder
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    # Only runs once to build images, then exits
-    restart: "no"
-    networks:
-      - cybergym-network
 
 networks:
   cybergym-network:
     driver: bridge
-
-volumes:
-  validator-data:

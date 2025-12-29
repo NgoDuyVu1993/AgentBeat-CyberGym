@@ -4,7 +4,8 @@ Test full flow: Green Agent -> Purple Agent -> CyberGym Server
 import requests
 import json
 
-GREEN_AGENT_URL = "http://localhost:8080/a2a"
+# GREEN_AGENT_URL = "http://localhost:8080/a2a"
+GREEN_AGENT_URL = "http://localhost:9030/a2a"
 
 payload = {
     "jsonrpc": "2.0",

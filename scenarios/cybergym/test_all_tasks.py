@@ -1,7 +1,7 @@
 import requests
 import json
 
-GREEN_AGENT_URL = "http://localhost:8080/a2a"
+GREEN_AGENT_URL = "http://localhost:9030/a2a"
 
 # All 4 subset tasks
 all_tasks = [
