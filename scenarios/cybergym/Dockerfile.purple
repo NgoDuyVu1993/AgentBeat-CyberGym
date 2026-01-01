@@ -1,5 +1,6 @@
 # Dockerfile.purple - CyberGym Purple Agent
 # AI-powered exploit generator using Google Gemini
+# FIXED: Uses 0.0.0.0 for Docker networking and port 8080 for AgentBeats
 
 FROM python:3.12-slim
 
@@ -17,18 +18,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY purple_agent_prod.py .
 COPY format_hints.py .
+COPY proven_payloads.py .
 
 # Environment variables
 ENV GOOGLE_API_KEY=""
-ENV PURPLE_AGENT_PORT=9031
+ENV PURPLE_AGENT_PORT=8080
 ENV GEMINI_MODEL=gemini-2.0-flash
 
-# Expose port
-EXPOSE 9031
+# Expose port (AgentBeats standard)
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9031/health || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # Run the agent
-CMD ["python", "purple_agent_prod.py"]
+# CRITICAL: Must use 0.0.0.0 to accept connections from other containers!
+CMD ["python", "purple_agent_prod.py", "--host", "0.0.0.0", "--port", "8080"]

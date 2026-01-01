@@ -1,5 +1,6 @@
 # Dockerfile.green - CyberGym Green Agent
 # Evaluates Purple Agents on vulnerability exploitation
+# FIXED: Uses 0.0.0.0 for Docker networking and port 8080 for AgentBeats
 
 FROM python:3.12-slim
 
@@ -20,15 +21,18 @@ COPY cybergym_green_agent.py .
 COPY format_hints.py .
 
 # Environment variables (can be overridden)
-ENV CYBERGYM_SERVER_URL=http://localhost:8666
-ENV GREEN_AGENT_PORT=9030
+# Use service name for Docker networking (not localhost!)
+ENV CYBERGYM_SERVER_URL=http://cybergym-server:8666
+ENV PURPLE_AGENT_URL=http://cybergym-purple-agent:8080
+ENV GREEN_AGENT_PORT=8080
 
-# Expose port
-EXPOSE 9030
+# Expose port (AgentBeats standard)
+EXPOSE 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:9030/ || exit 1
+    CMD curl -f http://localhost:8080/ || exit 1
 
 # Run the agent
-CMD ["python", "cybergym_green_agent.py", "--port", "9030"]
+# CRITICAL: Must use 0.0.0.0 to accept connections from other containers!
+CMD ["python", "cybergym_green_agent.py", "--host", "0.0.0.0", "--port", "8080"]
