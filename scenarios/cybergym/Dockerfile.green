@@ -6,33 +6,23 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
 COPY cybergym_adapter.py .
 COPY cybergym_green_agent.py .
 COPY format_hints.py .
 
-# Environment variables (can be overridden)
-# Use service name for Docker networking (not localhost!)
 ENV HOST=0.0.0.0
 ENV PORT=8080
 ENV CYBERGYM_SERVER_URL=http://cybergym-server:8666
 
-# Expose port (AgentBeats standard)
 EXPOSE 8080
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/ || exit 1
 
-# Run the agent
-# CRITICAL: Must use 0.0.0.0 to accept connections from other containers!
-CMD ["python", "cybergym_green_agent.py"]
+ENTRYPOINT ["python", "cybergym_green_agent.py"]
+CMD []
