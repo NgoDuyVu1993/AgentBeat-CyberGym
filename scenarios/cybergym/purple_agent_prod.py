@@ -609,8 +609,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="CyberGym Purple Agent")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
-    parser.add_argument("--port", type=int, default=9031, help="Port to bind")
+    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), help="Host to bind")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), help="Port to bind")
     parser.add_argument("--api-key", default=None, help="Google API Key")
     parser.add_argument("--model", default="gemini-2.0-flash", help="Gemini model")
     
@@ -618,7 +618,7 @@ def main():
     
     # Create config
     config = Config(
-        HOST=args.host if args.host != "127.0.0.1" else "0.0.0.0",
+        HOST=args.host,
         PORT=args.port,
         GOOGLE_API_KEY=args.api_key or os.getenv("GOOGLE_API_KEY", ""),
         GEMINI_MODEL=args.model

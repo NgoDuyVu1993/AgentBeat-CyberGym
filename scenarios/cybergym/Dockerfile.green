@@ -22,9 +22,9 @@ COPY format_hints.py .
 
 # Environment variables (can be overridden)
 # Use service name for Docker networking (not localhost!)
+ENV HOST=0.0.0.0
+ENV PORT=8080
 ENV CYBERGYM_SERVER_URL=http://cybergym-server:8666
-ENV PURPLE_AGENT_URL=http://cybergym-purple-agent:8080
-ENV GREEN_AGENT_PORT=8080
 
 # Expose port (AgentBeats standard)
 EXPOSE 8080
@@ -35,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run the agent
 # CRITICAL: Must use 0.0.0.0 to accept connections from other containers!
-CMD ["python", "cybergym_green_agent.py", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "cybergym_green_agent.py"]

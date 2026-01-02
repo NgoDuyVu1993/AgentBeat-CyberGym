@@ -471,9 +471,9 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="CyberGym Green Agent")
-    parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
-    parser.add_argument("--port", type=int, default=9030, help="Port to bind")
-    parser.add_argument("--cybergym-url", default="http://localhost:8666", 
+    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), help="Host to bind")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), help="Port to bind")
+    parser.add_argument("--cybergym-url", default=os.getenv("CYBERGYM_SERVER_URL", "http://localhost:8666"), 
                         help="CyberGym server URL")
     
     args = parser.parse_args()

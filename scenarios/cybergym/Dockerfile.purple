@@ -21,8 +21,9 @@ COPY format_hints.py .
 COPY proven_payloads.py .
 
 # Environment variables
+ENV HOST=0.0.0.0
+ENV PORT=8080
 ENV GOOGLE_API_KEY=""
-ENV PURPLE_AGENT_PORT=8080
 ENV GEMINI_MODEL=gemini-2.0-flash
 
 # Expose port (AgentBeats standard)
@@ -34,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run the agent
 # CRITICAL: Must use 0.0.0.0 to accept connections from other containers!
-CMD ["python", "purple_agent_prod.py", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "purple_agent_prod.py"]
