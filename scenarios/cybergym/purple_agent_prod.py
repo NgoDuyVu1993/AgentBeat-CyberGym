@@ -515,17 +515,25 @@ def create_app(config: Config = None) -> FastAPI:
     
     @app.get("/.well-known/agent-card.json")
     async def agent_card():
-        """Return A2A Agent Card"""
+        """Return A2A Agent Card - MUST follow A2A specification"""
         return {
             "name": "CyberGym Purple Agent",
             "description": "AI-powered exploit generator for CyberGym vulnerability tasks",
             "version": "1.0.0",
             "url": app.state.config.CARD_URL,
-            "capabilities": ["poc-generation", "cybergym"],
-            "endpoints": {
-                "generate-poc": "/generate-poc",
-                "health": "/health"
-            }
+            "capabilities": {
+                "streaming": False,
+                "pushNotifications": False
+            },
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+            "skills": [
+                {
+                    "id": "poc-generation",
+                    "name": "PoC Generation",
+                    "description": "Generates proof-of-concept exploits for vulnerabilities"
+                }
+            ]
         }
     
     @app.get("/stats")
@@ -673,7 +681,7 @@ def main():
     print(f"  POST http://{config.HOST}:{config.PORT}/generate-poc-json")
     print(f"  GET  http://{config.HOST}:{config.PORT}/health")
     print(f"  GET  http://{config.HOST}:{config.PORT}/stats")
-    print(f"  GET  http://{config.HOST}:{config.PORT}/.well-known/agent.json")
+    print(f"  GET  http://{config.HOST}:{config.PORT}/.well-known/agent-card.json")
     print()
     print("Proven payloads available for:")
     for task_id in PROVEN_PAYLOADS.keys():

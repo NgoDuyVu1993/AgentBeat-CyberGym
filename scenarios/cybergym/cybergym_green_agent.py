@@ -392,16 +392,25 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
     
     @app.get("/.well-known/agent-card.json")
     async def agent_card():
-        """Return A2A Agent Card"""
+        """Return A2A Agent Card - MUST follow A2A specification"""
         return {
             "name": "CyberGym Green Agent",
             "description": "Evaluates AI agents on cybersecurity vulnerability exploitation tasks",
             "version": "1.0.0",
             "url": app.state.card_url or AGENT_CARD_URL,
-            "capabilities": ["assessment", "cybergym"],
-            "endpoints": {
-                "message": "/a2a"
-            }
+            "capabilities": {
+                "streaming": False,
+                "pushNotifications": False
+            },
+            "defaultInputModes": ["text"],
+            "defaultOutputModes": ["text"],
+            "skills": [
+                {
+                    "id": "cybergym-assessment",
+                    "name": "CyberGym Assessment",
+                    "description": "Evaluates Purple Agents on vulnerability exploitation tasks"
+                }
+            ]
         }
     
     @app.post("/a2a")
