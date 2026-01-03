@@ -442,90 +442,108 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
             method = body.get("method", "")
             params = body.get("params", {})
             req_id = body.get("id", "1")
-
+        
+            # Log incoming request for debugging
+            logger.info(f"A2A Request - Method: {method}")
+            logger.info(f"A2A Params: {json.dumps(params, indent=2)[:500]}")
+        
             if method == "message/send":
-                # Extract evaluation request
                 message = params.get("message", {})
-                parts = message.get("parts", [])
-
-                # Find text part
+            
+                # Try multiple ways to find text content
                 text_content = None
+            
+                # Method 1: parts array with type=text
+                parts = message.get("parts", [])
                 for part in parts:
-                    if part.get("type") == "text":
+                    if isinstance(part, dict) and part.get("type") == "text":
                         text_content = part.get("text", "")
                         break
-
+            
+                # Method 2: Direct text field
                 if not text_content:
-                    return JSONResponse(
-                        {
-                            "jsonrpc": "2.0",
-                            "id": req_id,
-                            "error": {
-                                "code": -32602,
-                                "message": "No text part found in message",
-                            },
+                    text_content = message.get("text", "")
+            
+                # Method 3: Content field
+                if not text_content:
+                    content = message.get("content", {})
+                    if isinstance(content, str):
+                        text_content = content
+                    elif isinstance(content, dict):
+                        text_content = content.get("text", "")
+            
+                # Method 4: First part as string
+                if not text_content and parts:
+                    first_part = parts[0]
+                    if isinstance(first_part, str):
+                        text_content = first_part
+                    elif isinstance(first_part, dict):
+                        text_content = first_part.get("text", "") or first_part.get("data", "")
+            
+                # Method 5: Raw params text
+                if not text_content:
+                    text_content = params.get("text", "")
+            
+                logger.info(f"Extracted text content: {text_content[:200] if text_content else 'NONE'}...")
+            
+                if not text_content:
+                    # Return the full message structure for debugging
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {
+                            "code": -32602, 
+                            "message": f"No text found. Message structure: {json.dumps(message)[:500]}"
                         }
-                    )
-
+                    })
+            
                 try:
                     eval_req = EvalRequest.model_validate_json(text_content)
                     ok, msg = agent.validate_request(eval_req)
                     if not ok:
-                        return JSONResponse(
-                            {
-                                "jsonrpc": "2.0",
-                                "id": req_id,
-                                "error": {"code": -32602, "message": msg},
-                            }
-                        )
-
+                        return JSONResponse({
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {"code": -32602, "message": msg}
+                        })
+                
                     # Run evaluation
                     result = await agent.run_eval(eval_req)
-
-                    return JSONResponse(
-                        {
-                            "jsonrpc": "2.0",
-                            "id": req_id,
-                            "result": {
-                                "message": {
-                                    "role": "assistant",
-                                    "parts": [
-                                        {
-                                            "type": "text",
-                                            "text": result.model_dump_json(),
-                                        }
-                                    ],
-                                }
-                            },
+                
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "message": {
+                                "role": "assistant",
+                                "parts": [
+                                    {"type": "text", "text": result.model_dump_json()}
+                                ]
+                            }
                         }
-                    )
+                    })
                 except Exception as e:
                     logger.error(f"Evaluation error: {e}")
-                    return JSONResponse(
-                        {
-                            "jsonrpc": "2.0",
-                            "id": req_id,
-                            "error": {"code": -32603, "message": str(e)},
-                        }
-                    )
-
-            # Unknown method
-            return JSONResponse(
-                {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "error": {"code": -32601, "message": f"Unknown method: {method}"},
-                }
-            )
-
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32603, "message": str(e)}
+                    })
+        
+        # Unknown method
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32601, "message": f"Unknown method: {method}"}
+            })
+        
         except Exception as e:
-            return JSONResponse(
-                {
-                    "jsonrpc": "2.0",
-                    "id": "1",
-                    "error": {"code": -32700, "message": str(e)},
-                }
-            )
+            logger.error(f"A2A endpoint error: {e}")
+            return JSONResponse({
+                "jsonrpc": "2.0",
+                "id": "1",
+                "error": {"code": -32700, "message": str(e)}
+            })
 
     # POST to root calls a2a_endpoint (must be defined AFTER a2a_endpoint)
     @app.post("/")
