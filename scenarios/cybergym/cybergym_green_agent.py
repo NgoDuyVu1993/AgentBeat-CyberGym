@@ -6,6 +6,11 @@ This Green Agent:
 2. Sends tasks to Purple Agents (AI vulnerability exploiters)
 3. Validates PoCs using the official CyberGym server
 4. Reports scores back to AgentBeats in the correct format
+
+CRITICAL FORMAT REQUIREMENTS (for AgentBeats leaderboard):
+- participants.agent MUST be the AgentBeats UUID (not name)
+- results array MUST NOT be empty (use placeholder if needed)
+- Each result MUST have: pass_rate, time_used, max_score, success, reason
 """
 
 import os
@@ -71,11 +76,44 @@ class EvalResult(BaseModel):
     Final evaluation result - AgentBeats compatible format.
     
     CRITICAL: Must match the leaderboard query structure:
-    - participants.agent: string (agent name)
-    - results[]: array with pass_rate, time_used, max_score
+    - participants.agent: AgentBeats UUID (NOT name!)
+    - results[]: array with pass_rate, time_used, max_score (NEVER empty!)
     """
-    participants: dict[str, str]  # {"agent": "agent-name"}
-    results: list[dict[str, Any]]  # List with pass_rate, time_used, max_score
+    participants: dict[str, str]  # {"agent": "UUID"}
+    results: list[dict[str, Any]]  # Must have at least one entry!
+
+
+# ============================================================================
+# AgentBeats ID Mapping
+# ============================================================================
+
+# Map participant names to their AgentBeats UUIDs
+# This is required because the leaderboard query uses UUID, not name
+AGENTBEATS_ID_MAP = {
+    "CyberGym-Purple-Agent": "019b7976-29af-70c2-89c2-992a139ac6aa",
+    # Add more mappings as needed
+}
+
+def get_agent_uuid(participant_name: str, participants_config: dict = None) -> str:
+    """
+    Get the AgentBeats UUID for a participant.
+    
+    Priority:
+    1. Check hardcoded map
+    2. Check if the name itself looks like a UUID
+    3. Return the name as fallback
+    """
+    # Check hardcoded map
+    if participant_name in AGENTBEATS_ID_MAP:
+        return AGENTBEATS_ID_MAP[participant_name]
+    
+    # Check if name is already a UUID format
+    if len(participant_name) == 36 and participant_name.count('-') == 4:
+        return participant_name
+    
+    # Fallback to name (not ideal but better than nothing)
+    logger.warning(f"No UUID mapping for participant: {participant_name}")
+    return participant_name
 
 
 # ============================================================================
@@ -269,10 +307,11 @@ class CyberGymGreenAgent:
             break
         
         if not purple_endpoint:
+            # Return a placeholder result - NEVER return empty results array!
             return EvalResult(
                 participants={"agent": "unknown"},
                 results=[{
-                    "task_id": "none",
+                    "task_id": "error",
                     "pass_rate": 0.0,
                     "time_used": 0.0,
                     "max_score": 0,
@@ -280,6 +319,10 @@ class CyberGymGreenAgent:
                     "reason": "No participant endpoint found"
                 }]
             )
+        
+        # Get the AgentBeats UUID for this participant
+        agent_uuid = get_agent_uuid(participant_name)
+        logger.info(f"Agent UUID: {agent_uuid}")
         
         # Get task list from config or request
         task_ids = request.config.get("tasks", self.config.TASK_IDS)
@@ -316,8 +359,9 @@ class CyberGymGreenAgent:
             logger.info(f"  Requesting PoC from Purple Agent...")
             poc_data = await purple_client.request_poc(task_desc, f"eval-{task_id}")
             
+            task_time = time.time() - task_start_time
+            
             if poc_data is None:
-                task_time = time.time() - task_start_time
                 logger.warning(f"  No PoC received for {task_id}")
                 results.append({
                     "task_id": task_id,
@@ -325,8 +369,7 @@ class CyberGymGreenAgent:
                     "time_used": round(task_time, 2),
                     "max_score": 100,
                     "success": False,
-                    "reason": "No PoC received from Purple Agent",
-                    "poc_size": 0
+                    "reason": "No PoC received from Purple Agent"
                 })
                 continue
             
@@ -353,9 +396,9 @@ class CyberGymGreenAgent:
                 "time_used": round(task_time, 2),
                 "max_score": 100,  # Each task is worth 100 points
                 "success": validation.vulnerability_confirmed,
+                "reason": validation.reason,
                 "score": validation.score,
                 "exit_code": validation.exit_code,
-                "reason": validation.reason,
                 "poc_size": len(poc_data),
                 "poc_id": validation.poc_id
             }
@@ -368,6 +411,19 @@ class CyberGymGreenAgent:
             else:
                 logger.info(f"  ❌ Failed: {validation.reason}")
         
+        # CRITICAL: Ensure results is NEVER empty!
+        # DuckDB UNNEST on empty array returns 0 rows, causing "no results" on leaderboard
+        if not results:
+            logger.warning("No results collected - adding placeholder entry")
+            results.append({
+                "task_id": "placeholder",
+                "pass_rate": 0.0,
+                "time_used": 0.0,
+                "max_score": 0,
+                "success": False,
+                "reason": "No tasks were processed"
+            })
+        
         # Calculate final score
         max_possible = len(task_ids) * 100
         final_score = (total_score / max_possible * 100) if max_possible > 0 else 0
@@ -379,9 +435,9 @@ class CyberGymGreenAgent:
         logger.info(f"{'='*50}")
         
         # Build result in AgentBeats format
-        # CRITICAL: participants must have "agent" key for leaderboard query
+        # CRITICAL: participants.agent MUST be UUID, not name!
         return EvalResult(
-            participants={"agent": participant_name},
+            participants={"agent": agent_uuid},
             results=results
         )
 
