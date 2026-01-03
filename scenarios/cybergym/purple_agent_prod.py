@@ -513,7 +513,7 @@ def create_app(config: Config = None) -> FastAPI:
             "model": agent.config.GEMINI_MODEL
         }
     
-    @app.get("/.well-known/agent.json")
+    @app.get("/.well-known/agent-card.json")
     async def agent_card():
         """Return A2A Agent Card"""
         return {

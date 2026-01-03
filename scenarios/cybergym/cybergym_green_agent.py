@@ -390,7 +390,7 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
     async def root():
         return {"status": "CyberGym Green Agent Running"}
     
-    @app.get("/.well-known/agent.json")
+    @app.get("/.well-known/agent-card.json")
     async def agent_card():
         """Return A2A Agent Card"""
         return {
