@@ -504,6 +504,12 @@ def create_app(config: Config = None) -> FastAPI:
             "ai_available": agent.gemini.client is not None
         }
     
+    # A2A messages come to root endpoint
+    @app.post("/")
+    async def root_post(request: Request):
+        """Handle A2A JSON-RPC requests at root"""
+        return await a2a_endpoint(request)
+
     @app.get("/health")
     async def health():
         """Health check endpoint"""

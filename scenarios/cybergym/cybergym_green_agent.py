@@ -390,6 +390,12 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
     async def root():
         return {"status": "CyberGym Green Agent Running"}
     
+    # A2A messages come to root endpoint
+    @app.post("/")
+    async def root_post(request: Request):
+        """Handle A2A JSON-RPC requests at root"""
+        return await a2a_endpoint(request)
+    
     @app.get("/.well-known/agent-card.json")
     async def agent_card():
         """Return A2A Agent Card - MUST follow A2A specification"""
