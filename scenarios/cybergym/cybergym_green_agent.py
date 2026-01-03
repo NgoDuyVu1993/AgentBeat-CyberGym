@@ -12,6 +12,7 @@ import os
 import json
 import asyncio
 import logging
+import uuid
 from typing import Any
 from dataclasses import dataclass, asdict
 
@@ -437,6 +438,7 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
             
             if method == "message/send":
                 message = params.get("message", {})
+                incoming_context_id = message.get("contextId", str(uuid.uuid4()))
                 
                 # Try multiple ways to find text content
                 text_content = None
@@ -499,16 +501,19 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
                     # Run evaluation
                     result = await agent.run_eval(eval_req)
                     
+                    # Return A2A-compliant response
+                    # The result should be a Message object with all required fields
                     return JSONResponse({
                         "jsonrpc": "2.0",
                         "id": req_id,
                         "result": {
-                            "message": {
-                                "role": "assistant",
-                                "parts": [
-                                    {"type": "text", "text": result.model_dump_json()}
-                                ]
-                            }
+                            "kind": "message",
+                            "messageId": str(uuid.uuid4()),
+                            "role": "agent",
+                            "parts": [
+                                {"kind": "text", "text": result.model_dump_json()}
+                            ],
+                            "contextId": incoming_context_id
                         }
                     })
                 except Exception as e:
