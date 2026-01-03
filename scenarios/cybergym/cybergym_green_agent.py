@@ -66,9 +66,7 @@ class EvalRequest(BaseModel):
 
 
 class EvalResult(BaseModel):
-    """Final evaluation result"""
-    winner: str
-    detail: dict[str, Any]
+       results: list[dict[str, Any]]  # List with "agent" field in each entry
 
 
 @dataclass
