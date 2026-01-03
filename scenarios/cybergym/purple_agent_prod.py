@@ -531,7 +531,8 @@ def create_app(config: Config = None) -> FastAPI:
                 {
                     "id": "poc-generation",
                     "name": "PoC Generation",
-                    "description": "Generates proof-of-concept exploits for vulnerabilities"
+                    "description": "Generates proof-of-concept exploits for vulnerabilities",
+                    "tags": ["exploit", "poc", "security"]
                 }
             ]
         }

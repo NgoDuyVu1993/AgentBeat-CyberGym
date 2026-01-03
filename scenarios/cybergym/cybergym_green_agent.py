@@ -408,7 +408,8 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
                 {
                     "id": "cybergym-assessment",
                     "name": "CyberGym Assessment",
-                    "description": "Evaluates Purple Agents on vulnerability exploitation tasks"
+                    "description": "Evaluates Purple Agents on vulnerability exploitation tasks",
+                    "tags": ["assessment", "cybergym", "security"] 
                 }
             ]
         }
