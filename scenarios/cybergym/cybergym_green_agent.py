@@ -428,62 +428,73 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
             method = body.get("method", "")
             params = body.get("params", {})
             req_id = body.get("id", "1")
-            
+        
             if method == "message/send":
                 # Extract evaluation request
                 message = params.get("message", {})
                 parts = message.get("parts", [])
-                
+            
+                # Find text part
+                text_content = None
                 for part in parts:
                     if part.get("type") == "text":
-                        text = part.get("text", "")
-                        try:
-                            eval_req = EvalRequest.model_validate_json(text)
-                            ok, msg = agent.validate_request(eval_req)
-                            if not ok:
-                                return JSONResponse({
-                                    "jsonrpc": "2.0",
-                                    "id": req_id,
-                                    "error": {"code": -32602, "message": msg}
-                                })
-                            
-                            # Run evaluation
-                            result = await agent.run_eval(eval_req)
-                            
-                            return JSONResponse({
-                                "jsonrpc": "2.0",
-                                "id": req_id,
-                                "result": {
-                                    "message": {
-                                        "role": "assistant",
-                                        "parts": [
-                                            {"type": "text", "text": result.model_dump_json()}
-                                        ]
-                                    }
-                                }
-                            })
-                        except Exception as e:
-                            logger.error(f"Evaluation error: {e}")
-                            return JSONResponse({
-                                "jsonrpc": "2.0",
-                                "id": req_id,
-                                "error": {"code": -32603, "message": str(e)}
-                            })
+                        text_content = part.get("text", "")
+                        break
             
+                if not text_content:
+                    # No text part - return error
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32602, "message": "No text part found in message"}
+                    })
+            
+                try:
+                    eval_req = EvalRequest.model_validate_json(text_content)
+                    ok, msg = agent.validate_request(eval_req)
+                    if not ok:
+                        return JSONResponse({
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {"code": -32602, "message": msg}
+                        })
+                
+                    # Run evaluation
+                    result = await agent.run_eval(eval_req)
+                
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "message": {
+                                "role": "assistant",
+                                "parts": [
+                                    {"type": "text", "text": result.model_dump_json()}
+                                ]
+                            }
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Evaluation error: {e}")
+                    return JSONResponse({
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32603, "message": str(e)}
+                    })
+        
+            # Unknown method
             return JSONResponse({
                 "jsonrpc": "2.0",
                 "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown method: {method}"}
             })
-            
+        
         except Exception as e:
             return JSONResponse({
                 "jsonrpc": "2.0",
                 "id": "1",
                 "error": {"code": -32700, "message": str(e)}
             })
-    
-    return app
 
 
 # ============================================================================
