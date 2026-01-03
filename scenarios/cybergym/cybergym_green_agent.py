@@ -5,7 +5,7 @@ This Green Agent:
 1. Receives tasks from AgentBeats
 2. Sends tasks to Purple Agents (AI vulnerability exploiters)
 3. Validates PoCs using the official CyberGym server
-4. Reports scores back to AgentBeats
+4. Reports scores back to AgentBeats in the correct format
 """
 
 import os
@@ -13,6 +13,7 @@ import json
 import asyncio
 import logging
 import uuid
+import time
 from typing import Any
 from dataclasses import dataclass, asdict
 
@@ -66,19 +67,15 @@ class EvalRequest(BaseModel):
 
 
 class EvalResult(BaseModel):
-       results: list[dict[str, Any]]  # List with "agent" field in each entry
-
-
-@dataclass
-class TaskResult:
-    """Result for a single task"""
-    task_id: str
-    success: bool
-    score: int
-    exit_code: int
-    reason: str
-    poc_size: int = 0
-    poc_id: str = ""
+    """
+    Final evaluation result - AgentBeats compatible format.
+    
+    CRITICAL: Must match the leaderboard query structure:
+    - participants.agent: string (agent name)
+    - results[]: array with pass_rate, time_used, max_score
+    """
+    participants: dict[str, str]  # {"agent": "agent-name"}
+    results: list[dict[str, Any]]  # List with pass_rate, time_used, max_score
 
 
 # ============================================================================
@@ -231,7 +228,7 @@ class CyberGymGreenAgent:
        b. Receive PoC from Purple Agent
        c. Validate PoC using CyberGym server
        d. Record score
-    3. Return final results
+    3. Return final results in AgentBeats format
     """
     
     def __init__(self, config: Config = None):
@@ -259,7 +256,7 @@ class CyberGymGreenAgent:
             updater: Optional TaskUpdater for progress updates
             
         Returns:
-            EvalResult with scores and details
+            EvalResult with scores and details in AgentBeats format
         """
         # Get first participant endpoint (AgentBeats sends name from scenario.toml)
         purple_endpoint = None
@@ -272,7 +269,17 @@ class CyberGymGreenAgent:
             break
         
         if not purple_endpoint:
-            return EvalResult(winner="none", detail={"error": "No participant endpoint found"})
+            return EvalResult(
+                participants={"agent": "unknown"},
+                results=[{
+                    "task_id": "none",
+                    "pass_rate": 0.0,
+                    "time_used": 0.0,
+                    "max_score": 0,
+                    "success": False,
+                    "reason": "No participant endpoint found"
+                }]
+            )
         
         # Get task list from config or request
         task_ids = request.config.get("tasks", self.config.TASK_IDS)
@@ -283,8 +290,8 @@ class CyberGymGreenAgent:
             timeout=self.config.PURPLE_AGENT_TIMEOUT
         )
         
-        # Track results
-        results: list[TaskResult] = []
+        # Track results - list of dicts with AgentBeats required fields
+        results: list[dict] = []
         total_score = 0
         successful_tasks = 0
         
@@ -299,6 +306,9 @@ class CyberGymGreenAgent:
                     f"Processing task {i+1}/{len(task_ids)}: {task_id}"
                 )
             
+            # Track time for this task
+            task_start_time = time.time()
+            
             # Get task description
             task_desc = self.task_loader.get_task_description(task_id)
             
@@ -307,14 +317,17 @@ class CyberGymGreenAgent:
             poc_data = await purple_client.request_poc(task_desc, f"eval-{task_id}")
             
             if poc_data is None:
+                task_time = time.time() - task_start_time
                 logger.warning(f"  No PoC received for {task_id}")
-                results.append(TaskResult(
-                    task_id=task_id,
-                    success=False,
-                    score=0,
-                    exit_code=-1,
-                    reason="No PoC received from Purple Agent"
-                ))
+                results.append({
+                    "task_id": task_id,
+                    "pass_rate": 0.0,
+                    "time_used": round(task_time, 2),
+                    "max_score": 100,
+                    "success": False,
+                    "reason": "No PoC received from Purple Agent",
+                    "poc_size": 0
+                })
                 continue
             
             logger.info(f"  Received PoC: {len(poc_data)} bytes")
@@ -328,16 +341,24 @@ class CyberGymGreenAgent:
                 timeout=self.config.VALIDATION_TIMEOUT
             )
             
-            # Record result
-            task_result = TaskResult(
-                task_id=task_id,
-                success=validation.vulnerability_confirmed,
-                score=validation.score,
-                exit_code=validation.exit_code,
-                reason=validation.reason,
-                poc_size=len(poc_data),
-                poc_id=validation.poc_id
-            )
+            task_time = time.time() - task_start_time
+            
+            # Calculate pass_rate (1.0 = 100%, 0.0 = 0%)
+            pass_rate = 1.0 if validation.vulnerability_confirmed else 0.0
+            
+            # Record result with AgentBeats required fields
+            task_result = {
+                "task_id": task_id,
+                "pass_rate": pass_rate,
+                "time_used": round(task_time, 2),
+                "max_score": 100,  # Each task is worth 100 points
+                "success": validation.vulnerability_confirmed,
+                "score": validation.score,
+                "exit_code": validation.exit_code,
+                "reason": validation.reason,
+                "poc_size": len(poc_data),
+                "poc_id": validation.poc_id
+            }
             results.append(task_result)
             
             if validation.vulnerability_confirmed:
@@ -357,17 +378,11 @@ class CyberGymGreenAgent:
         logger.info(f"  Score: {total_score}/{max_possible} ({final_score:.1f}%)")
         logger.info(f"{'='*50}")
         
-        # Build result
+        # Build result in AgentBeats format
+        # CRITICAL: participants must have "agent" key for leaderboard query
         return EvalResult(
-            winner=participant_name if successful_tasks > 0 else "none",
-            detail={
-                "total_tasks": len(task_ids),
-                "successful_tasks": successful_tasks,
-                "total_score": total_score,
-                "max_score": max_possible,
-                "percentage": round(final_score, 2),
-                "task_results": [asdict(r) for r in results]
-            }
+            participants={"agent": participant_name},
+            results=results
         )
 
 
