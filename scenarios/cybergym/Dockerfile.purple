@@ -1,29 +1,39 @@
 # Dockerfile.purple - CyberGym Purple Agent
 # AI-powered exploit generator using Google Gemini
-# FIXED: Uses 0.0.0.0 for Docker networking and port 8080 for AgentBeats
+# FIXED: Uses ENTRYPOINT + CMD for AgentBeats compatibility
 
 FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements first for caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy application code
 COPY purple_agent_prod.py .
 COPY format_hints.py .
 COPY proven_payloads.py .
 
+# Environment variables
 ENV HOST=0.0.0.0
 ENV PORT=8080
 ENV GOOGLE_API_KEY=""
 ENV GEMINI_MODEL=gemini-2.0-flash
 
+# Expose port (AgentBeats standard)
 EXPOSE 8080
 
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
+# Use ENTRYPOINT for the command and CMD for default arguments
+# This allows AgentBeats to append/override flags correctly
 ENTRYPOINT ["python", "purple_agent_prod.py"]
-CMD []
+CMD ["--host", "0.0.0.0", "--port", "8080"]

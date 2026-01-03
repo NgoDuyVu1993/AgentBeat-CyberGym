@@ -367,7 +367,10 @@ class CyberGymGreenAgent:
 # A2A Server Integration
 # ============================================================================
 
-def create_green_agent_server(config: Config = None):
+# Global variable to store the card_url for Agent Card generation
+AGENT_CARD_URL = ""
+
+def create_green_agent_server(config: Config = None, card_url: str = ""):
     """
     Create a FastAPI server for the Green Agent.
     
@@ -380,6 +383,9 @@ def create_green_agent_server(config: Config = None):
     app = FastAPI(title="CyberGym Green Agent")
     agent = CyberGymGreenAgent(config)
     
+    # Store card_url in app state
+    app.state.card_url = card_url
+    
     @app.get("/")
     async def root():
         return {"status": "CyberGym Green Agent Running"}
@@ -391,6 +397,7 @@ def create_green_agent_server(config: Config = None):
             "name": "CyberGym Green Agent",
             "description": "Evaluates AI agents on cybersecurity vulnerability exploitation tasks",
             "version": "1.0.0",
+            "url": app.state.card_url or AGENT_CARD_URL,
             "capabilities": ["assessment", "cybergym"],
             "endpoints": {
                 "message": "/a2a"
@@ -467,22 +474,47 @@ def create_green_agent_server(config: Config = None):
 # Main Entry Point
 # ============================================================================
 
-if __name__ == "__main__":
+def parse_args():
+    """Parse command line arguments - AgentBeats compatible"""
     import argparse
     
     parser = argparse.ArgumentParser(description="CyberGym Green Agent")
-    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), help="Host to bind")
-    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), help="Port to bind")
+    
+    # Standard AgentBeats arguments (REQUIRED for A2A protocol)
+    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), 
+                        help="Host to bind to")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), 
+                        help="Port to listen on")
+    parser.add_argument("--card-url", default=os.getenv("CARD_URL", ""), 
+                        help="Public URL for the Agent Card")
+    
+    # Additional arguments
     parser.add_argument("--cybergym-url", default=os.getenv("CYBERGYM_SERVER_URL", "http://localhost:8666"), 
                         help="CyberGym server URL")
     
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    
+    # Store card_url globally for Agent Card generation
+    AGENT_CARD_URL = args.card_url
     
     # Create config
     config = Config(CYBERGYM_SERVER_URL=args.cybergym_url)
     
+    # Print startup info
+    print("=" * 60)
+    print("CyberGym Green Agent")
+    print("=" * 60)
+    print(f"Host: {args.host}")
+    print(f"Port: {args.port}")
+    print(f"Card URL: {args.card_url or '(not set)'}")
+    print(f"CyberGym Server: {config.CYBERGYM_SERVER_URL}")
+    print("=" * 60)
+    
     # Create and run server
     import uvicorn
-    app = create_green_agent_server(config)
+    app = create_green_agent_server(config, card_url=args.card_url)
     uvicorn.run(app, host=args.host, port=args.port)
-

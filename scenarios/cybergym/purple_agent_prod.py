@@ -68,7 +68,8 @@ class Config:
     """Purple Agent Configuration"""
     # Server settings
     HOST: str = "0.0.0.0"
-    PORT: int = int(os.getenv("PURPLE_AGENT_PORT", "9031"))
+    PORT: int = int(os.getenv("PORT", "8080"))
+    CARD_URL: str = ""  # Public URL for Agent Card
     
     # AI settings
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
@@ -490,6 +491,9 @@ def create_app(config: Config = None) -> FastAPI:
     
     agent = CyberGymPurpleAgent(config)
     
+    # Store config in app state for Agent Card
+    app.state.config = config or Config()
+    
     @app.get("/")
     async def root():
         """Root endpoint"""
@@ -507,6 +511,21 @@ def create_app(config: Config = None) -> FastAPI:
             "status": "healthy",
             "ai_available": agent.gemini.client is not None,
             "model": agent.config.GEMINI_MODEL
+        }
+    
+    @app.get("/.well-known/agent.json")
+    async def agent_card():
+        """Return A2A Agent Card"""
+        return {
+            "name": "CyberGym Purple Agent",
+            "description": "AI-powered exploit generator for CyberGym vulnerability tasks",
+            "version": "1.0.0",
+            "url": app.state.config.CARD_URL,
+            "capabilities": ["poc-generation", "cybergym"],
+            "endpoints": {
+                "generate-poc": "/generate-poc",
+                "health": "/health"
+            }
         }
     
     @app.get("/stats")
@@ -604,22 +623,36 @@ def create_app(config: Config = None) -> FastAPI:
 # Main Entry Point
 # ============================================================================
 
-def main():
-    """Main entry point"""
+def parse_args():
+    """Parse command line arguments - AgentBeats compatible"""
     import argparse
     
     parser = argparse.ArgumentParser(description="CyberGym Purple Agent")
-    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), help="Host to bind")
-    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), help="Port to bind")
+    
+    # Standard AgentBeats arguments (REQUIRED for A2A protocol)
+    parser.add_argument("--host", default=os.getenv("HOST", "0.0.0.0"), 
+                        help="Host to bind to")
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8080")), 
+                        help="Port to listen on")
+    parser.add_argument("--card-url", default=os.getenv("CARD_URL", ""), 
+                        help="Public URL for the Agent Card")
+    
+    # Additional arguments
     parser.add_argument("--api-key", default=None, help="Google API Key")
     parser.add_argument("--model", default="gemini-2.0-flash", help="Gemini model")
     
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main():
+    """Main entry point"""
+    args = parse_args()
     
     # Create config
     config = Config(
         HOST=args.host,
         PORT=args.port,
+        CARD_URL=args.card_url,
         GOOGLE_API_KEY=args.api_key or os.getenv("GOOGLE_API_KEY", ""),
         GEMINI_MODEL=args.model
     )
@@ -630,6 +663,7 @@ def main():
     print("=" * 60)
     print(f"Host: {config.HOST}")
     print(f"Port: {config.PORT}")
+    print(f"Card URL: {config.CARD_URL or '(not set)'}")
     print(f"Model: {config.GEMINI_MODEL}")
     print(f"API Key: {'✅ Set' if config.GOOGLE_API_KEY else '❌ Not set'}")
     print("=" * 60)
@@ -639,6 +673,7 @@ def main():
     print(f"  POST http://{config.HOST}:{config.PORT}/generate-poc-json")
     print(f"  GET  http://{config.HOST}:{config.PORT}/health")
     print(f"  GET  http://{config.HOST}:{config.PORT}/stats")
+    print(f"  GET  http://{config.HOST}:{config.PORT}/.well-known/agent.json")
     print()
     print("Proven payloads available for:")
     for task_id in PROVEN_PAYLOADS.keys():
