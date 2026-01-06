@@ -1,38 +1,64 @@
-# Dockerfile.green - CyberGym Green Agent
-# Evaluates Purple Agents on vulnerability exploitation
-# FIXED: Uses ENTRYPOINT + CMD for AgentBeats compatibility
+# Dockerfile.green - Surgical Data Bundling with CyberGym Server + Mock Fallback
+# Phase 1 Strategy (Expert Approved Jan 5, 2026):
+# 1. Bundle surgical data (2 tasks only) to keep image ~2GB
+# 2. Try real CyberGym validation first
+# 3. Fall back to mock validation when Docker-in-Docker fails (HTTP 500)
+# 4. Be transparent in 'reason' field about validation mode
 
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (curl for health checks, git for cybergym install)
 RUN apt-get update && apt-get install -y \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for caching
+# Install python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Clone and install CyberGym with [server] extra
+# This is required for real validation attempts
+RUN git clone https://github.com/sunblaze-ucb/cybergym.git /tmp/cybergym \
+    && cd /tmp/cybergym \
+    && pip install --no-cache-dir -e '.[server]' \
+    && rm -rf /tmp/cybergym/.git
+
+# Create data directory structure
+RUN mkdir -p /app/cybergym_data/oss-fuzz-data
+
+# --- SURGICAL DATA BUNDLING ---
+# Only copy the 2 tasks we need (excluding 55GB task 385167047)
+# This keeps image at ~2GB instead of 25GB+
+# Task 1: oss-fuzz:42535201 (~159 MB total)
+COPY cybergym_data/data/oss-fuzz-data/42535201-vul /app/cybergym_data/oss-fuzz-data/42535201-vul
+COPY cybergym_data/data/oss-fuzz-data/42535201-fix /app/cybergym_data/oss-fuzz-data/42535201-fix
+# Task 2: oss-fuzz:370689421 (~870 MB total)
+COPY cybergym_data/data/oss-fuzz-data/370689421-vul /app/cybergym_data/oss-fuzz-data/370689421-vul
+COPY cybergym_data/data/oss-fuzz-data/370689421-fix /app/cybergym_data/oss-fuzz-data/370689421-fix
+
+# Create POC save directory for CyberGym server
+RUN mkdir -p /app/server_poc
 
 # Copy application code
 COPY cybergym_adapter.py .
 COPY cybergym_green_agent.py .
 COPY format_hints.py .
+COPY start.sh .
 
-# Environment variables (can be overridden)
+# Make startup script executable
+RUN chmod +x start.sh
+
+# Environment variables
+ENV CYBERGYM_SERVER_URL=http://localhost:8666
 ENV HOST=0.0.0.0
-ENV PORT=8080
-ENV CYBERGYM_SERVER_URL=http://cybergym-server:8666
+ENV PORT=9009
 
-# Expose port (AgentBeats standard)
-EXPOSE 8080
+EXPOSE 9009
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/ || exit 1
-
-# Use ENTRYPOINT for the command and CMD for default arguments
-# This allows AgentBeats to append/override flags correctly
-ENTRYPOINT ["python", "cybergym_green_agent.py"]
-CMD ["--host", "0.0.0.0", "--port", "8080"]
+# Use startup script that:
+# 1. Attempts to start CyberGym server
+# 2. Starts Green Agent with mock fallback for validation failures
+ENTRYPOINT ["/bin/bash", "/app/start.sh"]

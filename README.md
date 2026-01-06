@@ -294,7 +294,7 @@ container_path = f"/out/{filename}"  # Use forward slash
 ## 👥 Team
 
 - **Ngo Duy Vu** - Green Agent Development
-- **Okl** - Integration & Testing
+- **Low Hwe Kian** - Integration & Testing
 
 ## 📄 License
 
