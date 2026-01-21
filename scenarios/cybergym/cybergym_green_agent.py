@@ -512,6 +512,10 @@ def create_green_agent_server(config: Config = None, card_url: str = ""):
     async def root():
         return {"status": "CyberGym Green Agent Running (Phase 1 - Mock Fallback Mode)"}
     
+    @app.get("/health")
+    async def health():
+        return {"status": "healthy", "service": "cybergym-green-agent", "version": "1.0.0-phase1"}
+    
     @app.get("/.well-known/agent-card.json")
     async def agent_card():
         return {
